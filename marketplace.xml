@@ -1,0 +1,40 @@
+<root>
+   <name>Alert Telegram</name>
+   <key>alerttelegram</key>
+   <state>stable</state>
+   <description>
+      <short>
+         <en>A powerful and smart Telegram notification bot for GLPI Helpdesk.</en>
+      </short>
+      <long>
+         <en>Alert Telegram is an enterprise-grade plugin designed to integrate your GLPI Helpdesk directly with Telegram, acting as a real-time smart notification engine. It replaces or complements traditional email notifications by delivering rich, formatted, and instant alerts to all actors involved in a ticket.</en>
+      </long>
+   </description>
+   <homepage>https://github.com/wagaoss/glpi-alerttelegram</homepage>
+   <download>https://github.com/wagaoss/glpi-alerttelegram/releases</download>
+   <issues>https://github.com/wagaoss/glpi-alerttelegram/issues</issues>
+   <readme>https://github.com/wagaoss/glpi-alerttelegram/blob/main/README.md</readme>
+   <authors>
+      <author>Wagner Silva Santos</author>
+   </authors>
+   <versions>
+      <version>
+         <num>1.0.0</num>
+         <compatibility>>=10.0.0</compatibility>
+         <download_url>https://github.com/wagaoss/glpi-alerttelegram/releases/download/1.0.0/alerttelegram-1.0.0.zip</download_url>
+      </version>
+   </versions>
+   <langs>
+      <lang>pt_BR</lang>
+      <lang>en_GB</lang>
+   </langs>
+   <license>GPLv2+</license>
+   <tags>
+      <en>
+         <tag>telegram</tag>
+         <tag>notification</tag>
+         <tag>bot</tag>
+         <tag>helpdesk</tag>
+      </en>
+   </tags>
+</root>
