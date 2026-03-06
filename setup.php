@@ -1,6 +1,6 @@
 <?php
 // Define a constante de versão do nosso plugin
-define('PLUGIN_ALERTTELEGRAM_VERSION', '1.0.0');
+define('PLUGIN_ALERTTELEGRAM_VERSION', '1.1.0');
 
 // Inicialização do plugin no ecossistema do GLPI
 function plugin_init_alerttelegram() {
@@ -37,7 +37,7 @@ function plugin_version_alerttelegram() {
         'version'        => PLUGIN_ALERTTELEGRAM_VERSION,
         'author'         => 'Wagaoss',
         'license'        => 'GPLv2+',
-        'homepage'       => '',
+        'homepage'       => 'https://github.com/wagaoss/glpi-alerttelegram.git',
         'requirements'   => [
             'glpi' => [
                 'min' => '10.0.0'

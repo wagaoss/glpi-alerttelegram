@@ -10,8 +10,8 @@ function plugin_alerttelegram_install() {
     $dbh = $property->getValue($DB);
 
     $runRawQuery = function($sql) use ($dbh) {
-        if (is_object($dbh) && method_exists($dbh, 'exec')) $dbh->exec($sql);
-        else $dbh->query($sql);
+        if (is_object($dbh) && method_exists($dbh, 'exec')) @$dbh->exec($sql);
+        else @$dbh->query($sql);
     };
 
     $table_chatids = 'glpi_plugin_alerttelegram_chatids';
@@ -56,8 +56,8 @@ function plugin_alerttelegram_uninstall() {
     $dbh = $property->getValue($DB);
 
     $runRawQuery = function($sql) use ($dbh) {
-        if (is_object($dbh) && method_exists($dbh, 'exec')) $dbh->exec($sql);
-        else $dbh->query($sql);
+        if (is_object($dbh) && method_exists($dbh, 'exec')) @$dbh->exec($sql);
+        else @$dbh->query($sql);
     };
 
     if ($DB->tableExists('glpi_plugin_alerttelegram_chatids')) $runRawQuery("DROP TABLE `glpi_plugin_alerttelegram_chatids`");
@@ -67,7 +67,6 @@ function plugin_alerttelegram_uninstall() {
 }
 
 // --- FUNÇÃO CENTRAL DE DISPARO ---
-// Note o 5º parâmetro $texto_completo, usado para procurar o @fulano
 function plugin_alerttelegram_enviar($tickets_id, $acao, $conteudo_extra = "", $uid_forcado = 0, $texto_completo = "") {
     global $DB, $CFG_GLPI;
 
@@ -85,13 +84,11 @@ function plugin_alerttelegram_enviar($tickets_id, $acao, $conteudo_extra = "", $
     // --- CAÇA ÀS MENÇÕES ANTES DE CORTAR O TEXTO ---
     $mencoes_ids = [];
     if (!empty($texto_completo)) {
-        // Busca palavras que começam com @ e contém letras, números, pontos ou hifens
         preg_match_all('/@([a-zA-Z0-9_\.-]+)/', $texto_completo, $matches);
         
         if (!empty($matches[1])) {
-            $nomes_mencionados = $matches[1]; // Array só com os nomes, sem o @
+            $nomes_mencionados = $matches[1]; 
             
-            // Busca no banco do GLPI se existe algum usuário com esse login (campo 'name')
             $iterator_mencoes = $DB->request([
                 'SELECT' => 'id',
                 'FROM'   => 'glpi_users',
@@ -104,7 +101,7 @@ function plugin_alerttelegram_enviar($tickets_id, $acao, $conteudo_extra = "", $
         }
     }
 
-    // Aplica o limite de caracteres para não mandar um livro no Telegram
+    // Aplica o limite de caracteres
     if (!empty($conteudo_extra) && mb_strlen($conteudo_extra) > $char_limit) {
         $conteudo_extra = mb_substr($conteudo_extra, 0, $char_limit) . " [...]";
     }
@@ -120,11 +117,40 @@ function plugin_alerttelegram_enviar($tickets_id, $acao, $conteudo_extra = "", $
     $autor_nome = getUserName($autor_id);
     $url_chamado = $CFG_GLPI["url_base"] . "/front/ticket.form.php?id=" . $tickets_id;
 
+    // --- AUTO-REPARO 1.1.0: FAREJADOR DE MOTIVO DE PENDÊNCIA ---
+    $motivo_pendencia = "";
+    if ($status_id == 4) { // 4 é o status nativo "Pendente" no GLPI
+        $iterator_pendencia = $DB->request([
+            'SELECT'     => ['glpi_pendingreasons.name'],
+            'FROM'       => 'glpi_pendingreasons_items',
+            'INNER JOIN' => [
+                'glpi_pendingreasons' => [
+                    'ON' => [
+                        'glpi_pendingreasons_items' => 'pendingreasons_id',
+                        'glpi_pendingreasons'       => 'id'
+                    ]
+                ]
+            ],
+            'WHERE'      => [
+                'glpi_pendingreasons_items.itemtype' => 'Ticket',
+                'glpi_pendingreasons_items.items_id' => $tickets_id
+            ],
+            'ORDER'      => 'glpi_pendingreasons_items.id DESC',
+            'LIMIT'      => 1
+        ]);
+
+        if (count($iterator_pendencia) > 0) {
+            $row_pendencia = $iterator_pendencia->current();
+            $motivo_pendencia = "\n⏸️ <b>Motivo:</b> " . $row_pendencia['name'];
+        }
+    }
+
+    // --- MONTAGEM DA MENSAGEM ---
     $mensagem = "🔔 <b>ATUALIZAÇÃO NO CHAMADO #{$tickets_id}</b>\n\n";
     $mensagem .= "⚡ <b>Ação:</b> {$acao}\n";
     $mensagem .= "🏷️ <b>Título:</b> {$titulo}\n";
     $mensagem .= "👤 <b>Autor:</b> {$autor_nome}\n";
-    $mensagem .= "🚦 <b>Status:</b> {$status_nome}\n";
+    $mensagem .= "🚦 <b>Status:</b> {$status_nome}{$motivo_pendencia}\n"; // Motivo injetado aqui!
     
     if (!empty($conteudo_extra)) {
         $mensagem .= "\n📝 <b>Detalhes:</b>\n<i>{$conteudo_extra}</i>\n";
@@ -137,10 +163,10 @@ function plugin_alerttelegram_enviar($tickets_id, $acao, $conteudo_extra = "", $
     // 1. Autor
     if ($autor_id) $target_user_ids[] = $autor_id;
     
-    // 2. ID Forçado (O cara que acabou de ser expulso do chamado)
+    // 2. ID Forçado
     if ($uid_forcado > 0) $target_user_ids[] = $uid_forcado;
 
-    // 3. IDs dos Mencionados (@fulano)
+    // 3. IDs dos Mencionados
     foreach ($mencoes_ids as $mid) {
         $target_user_ids[] = $mid;
     }
@@ -172,7 +198,6 @@ function plugin_alerttelegram_enviar($tickets_id, $acao, $conteudo_extra = "", $
         }
     }
 
-    // A Mágica: Remove qualquer repetição se o cara estiver no grupo E for mencionado, por exemplo
     $target_user_ids = array_unique($target_user_ids); 
 
     foreach ($target_user_ids as $uid) {
@@ -218,7 +243,6 @@ function plugin_alerttelegram_item_add(CommonDBTM $item) {
     $raw_content = html_entity_decode($item->getField('content') ?? '');
     $has_media = (stripos($raw_content, '<img') !== false || stripos($raw_content, '<video') !== false || stripos($raw_content, '<iframe') !== false);
     
-    // Texto completo para caçar as menções antes de cortar
     $texto_completo = trim(str_replace('&nbsp;', ' ', strip_tags($raw_content)));
     $conteudo_extra = $texto_completo;
 
@@ -243,10 +267,9 @@ function plugin_alerttelegram_item_add(CommonDBTM $item) {
 
     if (empty($conteudo_extra) && $has_media) {
         $conteudo_extra = "[🖼️ Imagem/Vídeo anexado. Acesse o chamado para visualizar]";
-        $texto_completo = ""; // Se é só imagem, não tem menção a procurar
+        $texto_completo = ""; 
     }
 
-    // Passamos o texto completo lá pro final da função para ele escanear!
     return plugin_alerttelegram_enviar($tickets_id, $acao, $conteudo_extra, 0, $texto_completo);
 }
 
